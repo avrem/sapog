@@ -1118,13 +1118,12 @@ void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_curren
 		volt = _state.input_voltage;
 		curr = _state.input_current;
 	}
-
-	if (out_voltage) {
-		*out_voltage = motor_adc_convert_input_voltage(volt);
+///////////////////////////////
+	if((volt > 4095)||(volt < 0)||(curr > 4095)||(curr  < 0)){
+		printf("Major malfunction");
+		while(1){}
 	}
-	if (out_current) {
-		*out_current = motor_adc_convert_input_current(curr);
-	}
+////////////////////////////
 }
 
 uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
