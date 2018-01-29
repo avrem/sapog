@@ -113,7 +113,7 @@ RELEASE_OPT = -O2 -fomit-frame-pointer
 DEBUG_OPT = -O2 -g3 -DDISABLE_WATCHDOG=1
 
 # More warnings are enabled in the included makefile
-CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow -Werror
+CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow
 CPPWARN = $(CWARN)
 
 # This firmware is compatible with all versions of hardware where the major number is 1 (i.e. 1.x),

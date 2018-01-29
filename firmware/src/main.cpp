@@ -63,10 +63,6 @@ os::watchdog::Timer init()
 
 	// Temperature sensor
 	int res = temperature_sensor::init();
-	if (res < 0) {
-		os::lowsyslog("Failed to init temperature sensor\n");
-		board::die(res);
-	}
 
 	// Motor control (must be initialized earlier than communicaton interfaces)
 	res = motor_init();
@@ -85,9 +81,6 @@ os::watchdog::Timer init()
 
 	// Self test
 	res = motor_test_hardware();
-	if (res != 0) {
-		board::die(res);
-	}
 
 	if (motor_test_motor()) {
 		os::lowsyslog("Motor is not connected or damaged\n");

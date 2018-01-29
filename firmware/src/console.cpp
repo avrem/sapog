@@ -114,7 +114,7 @@ static void cmd_test(BaseSequentialStream *chp, int argc, char *argv[])
 
 static void cmd_dc(BaseSequentialStream *chp, int argc, char *argv[])
 {
-	static const int TTL_MS = 30000;
+	static const int TTL_MS = 3000000;
 
 	if (argc == 0) {
 		motor_stop();
