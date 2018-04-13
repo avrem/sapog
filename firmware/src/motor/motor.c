@@ -50,7 +50,7 @@
 #define MAX_BEEP_DURATION_MSEC    1000
 
 #define MIN_VALID_INPUT_VOLTAGE 4.0
-#define MAX_VALID_INPUT_VOLTAGE 40.0
+#define MAX_VALID_INPUT_VOLTAGE 60.0
 
 
 static unsigned comm_period_to_rpm(uint32_t comm_period);
@@ -113,8 +113,8 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("mot_v_min",        2.5,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("mot_v_spinup",     0.5,    0.01,    10.0)
+CONFIG_PARAM_FLOAT("mot_v_min",        2.5,    0.5,     20.0)
+CONFIG_PARAM_FLOAT("mot_v_spinup",     0.5,    0.01,    20.0)
 CONFIG_PARAM_FLOAT("mot_spup_vramp_t", 3.0,    0.0,     10.0)
 CONFIG_PARAM_FLOAT("mot_dc_accel",     0.09,   0.001,   0.5)
 CONFIG_PARAM_FLOAT("mot_dc_slope",     5.0,    0.1,     20.0)
@@ -124,7 +124,7 @@ CONFIG_PARAM_INT("ctl_dir",        0,      0,       1)
 
 CONFIG_PARAM_INT("mot_rpm_min",    1000,   50,      5000)
 
-CONFIG_PARAM_FLOAT("mot_i_max",    20.0,   1.0,     60.0)
+CONFIG_PARAM_FLOAT("mot_i_max",    20.0,   1.0,     100.0)
 CONFIG_PARAM_FLOAT("mot_i_max_p",  0.2,    0.01,    2.0)
 
 CONFIG_PARAM_FLOAT("mot_lpf_freq", 20.0,   1.0,     200.0)
