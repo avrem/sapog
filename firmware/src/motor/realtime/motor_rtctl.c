@@ -318,7 +318,9 @@ static void stop_from_isr(void)
 static void engage_current_comm_step(void)
 {
 	assert(_state.comm_table);
+	TESTPAD_ZC_SET();
 	motor_pwm_set_step_from_isr(_state.comm_table + _state.current_comm_step, _state.pwm_val);
+	TESTPAD_ZC_CLEAR();
 }
 
 static void register_good_step(void)
@@ -963,9 +965,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			return;
 		}
 
-		TESTPAD_ZC_SET();
 		handle_detected_zc(zc_timestamp);
-		TESTPAD_ZC_CLEAR();
 	} else {
 		if (past_zc) {
 			const int bemf_threshold = _state.neutral_voltage * 15 / 16;
@@ -1021,9 +1021,7 @@ void motor_hall_callback(void)
 			}
 		}
 		uint64_t timestamp = motor_timer_hnsec() - 2;
-		TESTPAD_ZC_SET();
 		commutate_now(timestamp);
-		TESTPAD_ZC_CLEAR();
 	}
 }
 
