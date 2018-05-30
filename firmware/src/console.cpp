@@ -95,6 +95,9 @@ static void cmd_stat(BaseSequentialStream *chp, int argc, char *argv[])
 	std::printf("RPM/DC        %-9u %f\n", motor_get_rpm(), motor_get_duty_cycle());
 	std::printf("Active limits %i\n", motor_get_limit_mask());
 	std::printf("ZC failures   %lu\n", (unsigned long)motor_get_zc_failures_since_start());
+
+	bool overheating = GPIOC->IDR & 1; // or is it?
+	std::printf("Thermo state %d\n", overheating);
 }
 
 static void cmd_test(BaseSequentialStream *chp, int argc, char *argv[])

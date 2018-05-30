@@ -379,6 +379,16 @@ static void update_control(uint32_t comm_period, float dt)
 	}
 
 	_state.rtctl_state = new_rtctl_state;
+
+	bool overheating = GPIOC->IDR & 1;
+	if (overheating) { // stop and latch
+		if (_state.rtctl_state != MOTOR_RTCTL_STATE_IDLE) {
+			stop(false);
+			_state.num_unexpected_stops = _params.num_unexpected_stops_to_latch;
+		}
+		return;
+	}
+
 	if (comm_period == 0 || _state.rtctl_state != MOTOR_RTCTL_STATE_RUNNING) {
 		update_control_non_running();
 		return;
