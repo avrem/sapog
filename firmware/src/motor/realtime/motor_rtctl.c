@@ -199,6 +199,7 @@ static struct control_state            /// Control state
 
 	int hall_table[8][MOTOR_NUM_COMMUTATION_STEPS];
 	bool sensored;
+	bool already_commutated;
 } _state;
 
 enum sensored_modes {
@@ -229,6 +230,7 @@ static struct precomputed_params       /// Parameters are read only
 
 	enum sensored_modes sensored;
         int hall_step_table[8];
+	uint32_t comm_delay_hnsec;
 } _params;
 
 static bool _initialization_confirmed = false;
@@ -251,6 +253,7 @@ CONFIG_PARAM_INT("mot_spup_blnk_pm",    100,   1,     300)      // permill
 // Sensored
 CONFIG_PARAM_INT("mot_sensored",        0,     0,     3)
 CONFIG_PARAM_INT("mot_hall_table",      0,     0,     66666666)
+CONFIG_PARAM_INT("mot_comm_delay",      0,     0,     100)
 
 static void configure(void)
 {
@@ -294,6 +297,8 @@ static void configure(void)
             int d = hst / div % 10;
             _params.hall_step_table[i] = d < MOTOR_NUM_COMMUTATION_STEPS ? d : -1;
         }
+
+	_params.comm_delay_hnsec = configGet("mot_comm_delay") * HNSEC_PER_USEC;
 
 	printf("Motor: RTCTL config: Max comm period: %u usec, BEMF window denom: %i\n",
 		(unsigned)(_params.comm_period_max / HNSEC_PER_USEC),
@@ -483,7 +488,8 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	switch (_state.zc_detection_result) {
 	case ZC_DETECTED: {
-		engage_current_comm_step();
+		if (!_state.already_commutated)
+			engage_current_comm_step();
 		register_good_step();
 		_state.flags &= ~FLAG_SYNC_RECOVERY;
 		break;
@@ -530,6 +536,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	_state.zc_detection_result = ZC_NOT_DETECTED;
 	_state.blank_time_deadline = timestamp_hnsec + _params.comm_blank_hnsec;
+	_state.already_commutated = false;
 
 	if (!_state.sensored) {
 		prepare_zc_detector_for_next_step();
@@ -627,7 +634,7 @@ static void commutate_now(const uint64_t timestamp)
 		_state.spinup_prev_zc_timestamp_set = true;
 	}
 
-	const uint32_t new_comm_period = timestamp - _state.prev_comm_timestamp;
+	const uint32_t new_comm_period = timestamp + _params.comm_delay_hnsec - _state.prev_comm_timestamp;
 
 	// We're using 3x averaging in order to compensate for phase asymmetry
 	_state.comm_period =
@@ -643,9 +650,6 @@ static void commutate_now(const uint64_t timestamp)
 
 	_state.zc_detection_result = ZC_DETECTED;
 
-	motor_timer_set_relative(0);
-	motor_adc_disable_from_isr();
-
 	if ((_state.flags & FLAG_SPINUP) != 0 && _state.averaged_comm_period <= _params.comm_period_max) {
 		if (_state.pwm_val >= _state.pwm_val_after_spinup) {
 			_state.flags &= ~FLAG_SPINUP;
@@ -653,6 +657,14 @@ static void commutate_now(const uint64_t timestamp)
 			// Speed up the ramp a bit in order to converge faster
 			_state.pwm_val++;
 		}
+	}
+
+	if (_params.comm_delay_hnsec > 0) {
+		motor_timer_set_relative(_params.comm_delay_hnsec);
+		motor_adc_disable_from_isr();
+	}
+	else {
+		motor_timer_callback(timestamp);
 	}
 }
 
@@ -1001,6 +1013,13 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 void motor_hall_callback(void)
 {
 	if ((_state.flags & FLAG_ACTIVE) != 0 && _state.sensored) {
+		if (_params.comm_delay_hnsec == 0) { // commutate immediately
+			read_hall_step();
+			if (_state.zc_detection_result != ZC_FAILED) {
+				engage_current_comm_step();
+				_state.already_commutated = true;
+			}
+		}
 		uint64_t timestamp = motor_timer_hnsec() - 2;
 		TESTPAD_ZC_SET();
 		commutate_now(timestamp);
