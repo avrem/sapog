@@ -110,7 +110,7 @@ void motor_rtctl_stop(void);
  * Configure PWM duty cycle
  * @param [in] duty_cycle PWM duty cycle [-1; 1], negative - braking, positive - forward
  */
-void motor_rtctl_set_duty_cycle(float duty_cycle);
+void motor_rtctl_set_duty_cycle(float duty_cycle, float current_limit, float current_offset);
 
 /**
  * Returns motor state.

@@ -257,6 +257,8 @@ static void update_control_non_running(void)
 
 		_state.dc_actual = _params.dc_min_voltage / _state.input_voltage;
 
+		motor_rtctl_set_duty_cycle(_state.dc_actual, _params.current_limit, _state.input_curent_offset); // for current limiting
+
 		motor_rtctl_start(_params.dc_spinup_voltage / _state.input_voltage,
 		                  _params.dc_min_voltage    / _state.input_voltage,
 		                  _params.spinup_voltage_ramp_duration,
@@ -414,14 +416,13 @@ static void update_control(uint32_t comm_period, float dt)
 	/*
 	 * Limiters
 	 */
-	new_duty_cycle = update_control_current_limit(new_duty_cycle);
 	new_duty_cycle = update_control_dc_slope(new_duty_cycle, dt);
 
 	/*
 	 * Update
 	 */
 	_state.dc_actual = new_duty_cycle;
-	motor_rtctl_set_duty_cycle(_state.dc_actual);
+	motor_rtctl_set_duty_cycle(_state.dc_actual, _params.current_limit, _state.input_curent_offset);
 }
 
 static void update_setpoint_ttl(int dt_ms)
