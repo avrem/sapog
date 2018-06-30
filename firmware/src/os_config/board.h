@@ -60,6 +60,13 @@
 #define GPIO_PORT_TEST_ZC       GPIOB
 #define GPIO_PIN_TEST_ZC        5
 
+#define GPIO_PORT_HALL_A        GPIOC
+#define GPIO_PIN_HALL_A         11
+#define GPIO_PORT_HALL_B        GPIOC
+#define GPIO_PIN_HALL_B         12
+#define GPIO_PORT_HALL_C        GPIOB
+#define GPIO_PIN_HALL_C         15
+
 /*
  * I/O ports initial setup, this configuration is established soon after reset
  * in the initialization code.
@@ -89,11 +96,11 @@
 #define VAL_GPIOAODR            ((1 << 11))
 
 #define VAL_GPIOBCRL            0x8b383bbb
-#define VAL_GPIOBCRH            0x38b88866
+#define VAL_GPIOBCRH            0x48b88866
 #define VAL_GPIOBODR            ((1 << GPIO_PIN_I2C_SCL) | (1 << GPIO_PIN_I2C_SDA) | (1 << 12) | (1 << 2))
 
 #define VAL_GPIOCCRL            0xbb884444
-#define VAL_GPIOCCRH            0x8881188b
+#define VAL_GPIOCCRH            0x8884488b
 #define VAL_GPIOCODR            0x00000000
 
 #define VAL_GPIODCRL            0x88888888
