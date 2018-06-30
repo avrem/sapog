@@ -417,6 +417,10 @@ void update_sensored_mode(void)
 {
 	if (_params.sensored == SM_ALWAYS)
 		_state.sensored = true;
+	else if (_params.sensored == SM_HYBRID)
+		_state.sensored = ((_state.flags & FLAG_SPINUP) != 0) ||
+				 (_state.averaged_comm_period > _params.comm_period_max / 2) ||
+				 (_state.zc_detection_result != ZC_DETECTED);
 	else
 		_state.sensored = false;
 }
