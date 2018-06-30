@@ -162,14 +162,14 @@ static void enable(void)
 	 */
 	ADC1->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_1;
 	ADC1->SQR3 =
-		ADC_SQR3_SQ1_2 |
+		ADC_SQR3_SQ1_3 | ADC_SQR3_SQ1_2 | ADC_SQR3_SQ1_1 | ADC_SQR3_SQ1_0 |
 		ADC_SQR3_SQ2_0 |
 		ADC_SQR3_SQ3_0 |
 		ADC_SQR3_SQ4_0 | ADC_SQR3_SQ4_1;
 
 	ADC2->SQR1 = ADC1->SQR1;
 	ADC2->SQR3 =
-		ADC_SQR3_SQ1_2 | ADC_SQR3_SQ1_0 |
+		ADC_SQR3_SQ1_3 | ADC_SQR3_SQ1_2 | ADC_SQR3_SQ1_1 |
 		ADC_SQR3_SQ2_0 | ADC_SQR3_SQ2_1 |
 		ADC_SQR3_SQ3_1 |
 		ADC_SQR3_SQ4_1;
@@ -233,18 +233,18 @@ struct motor_adc_sample motor_adc_get_last_sample(void)
 
 float motor_adc_convert_input_voltage(int raw)
 {
-	static const float RTOP = 10.0F;
+	static const float RTOP = 20.0F;
 	static const float RBOT = 1.3F;
 	static const float SCALE = (RTOP + RBOT) / RBOT;
 	const float unscaled = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
 	return unscaled * SCALE;
 }
 
+const float CURRENT_SCALE = 1000 / (20 * 3.3 / 5) * 1.04; // ACS758 100A 3.3v
+
 float motor_adc_convert_input_current(int raw)
 {
-	// http://www.diodes.com/datasheets/ZXCT1051.pdf
 	const float vout = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
-	const float vsense = vout / 10;
-	const float iload = vsense / _shunt_resistance;
+	const float iload = vout * CURRENT_SCALE;
 	return iload;
 }
