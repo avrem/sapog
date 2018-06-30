@@ -196,7 +196,16 @@ static struct control_state            /// Control state
 	int pwm_val_after_spinup;
 
 	uint64_t spinup_ramp_duration_hnsec;
+
+	int hall_table[8][MOTOR_NUM_COMMUTATION_STEPS];
 } _state;
+
+enum sensored_modes {
+	SM_NONE = 0,
+	SM_MONITOR,
+	SM_HYBRID,
+	SM_ALWAYS
+};
 
 static struct precomputed_params       /// Parameters are read only
 {
@@ -216,6 +225,9 @@ static struct precomputed_params       /// Parameters are read only
 	uint32_t spinup_blanking_time_permil;
 
 	uint32_t adc_sampling_period;
+
+	enum sensored_modes sensored;
+        int hall_step_table[8];
 } _params;
 
 static bool _initialization_confirmed = false;
@@ -235,6 +247,9 @@ CONFIG_PARAM_INT("mot_comm_per_max",    4000,  1000,  10000)    // microsecond
 CONFIG_PARAM_INT("mot_spup_st_cp",      100000,10000, 300000)   // microsecond
 CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (sic!)
 CONFIG_PARAM_INT("mot_spup_blnk_pm",    100,   1,     300)      // permill
+// Sensored
+CONFIG_PARAM_INT("mot_sensored",        0,     0,     3)
+CONFIG_PARAM_INT("mot_hall_table",      0,     0,     66666666)
 
 static void configure(void)
 {
@@ -271,6 +286,13 @@ static void configure(void)
 	}
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
+
+	_params.sensored = configGet("mot_sensored");
+        int hst = configGet("mot_hall_table");
+        for (int i = 0, div = 1e7; i < 8; i++, div /= 10) {
+            int d = hst / div % 10;
+            _params.hall_step_table[i] = d < MOTOR_NUM_COMMUTATION_STEPS ? d : -1;
+        }
 
 	printf("Motor: RTCTL config: Max comm period: %u usec, BEMF window denom: %i\n",
 		(unsigned)(_params.comm_period_max / HNSEC_PER_USEC),
@@ -378,6 +400,16 @@ static void prepare_zc_detector_for_next_step(void)
 
 	// Number of samples past ZC should reduce proportionally to the advance angle.
 	_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal * (32 - advance) / 64;
+}
+
+#define HALL_READ(port, pin) (((port)->IDR >> pin) & 1)
+
+static inline int read_hall(void)
+{
+	bool hall_a = HALL_READ(GPIO_PORT_HALL_A, GPIO_PIN_HALL_A);
+	bool hall_b = HALL_READ(GPIO_PORT_HALL_B, GPIO_PIN_HALL_B);
+	bool hall_c = HALL_READ(GPIO_PORT_HALL_C, GPIO_PIN_HALL_C);
+	return (hall_c << 2) | (hall_b << 1) | hall_a;
 }
 
 void motor_timer_callback(uint64_t timestamp_hnsec)
@@ -735,6 +767,12 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 		}
 #endif
+
+		if (_params.sensored == SM_MONITOR) {
+			int hall_step = read_hall();
+			_state.hall_table[hall_step][_state.current_comm_step]++;
+		}
+
 		_state.zc_bemf_seen_before_zc = _state.zc_bemf_seen_before_zc || !past_zc;
 
 		/*
@@ -1162,6 +1200,19 @@ void motor_rtctl_print_debug_info(void)
 	irq_primask_disable();
 	const struct control_state state_copy = _state;
 	irq_primask_enable();
+
+	if (_params.sensored == SM_MONITOR) {
+		for (int i = 0; i < 8; i++) {
+			printf("code %d: ", i);
+			int step = -1;
+			for (int j = 0; j < MOTOR_NUM_COMMUTATION_STEPS; j++) {
+				printf("%d ", state_copy.hall_table[i][j]);
+				if ((step == -1 || state_copy.hall_table[i][j] > state_copy.hall_table[i][step]) && state_copy.hall_table[i][j] > 0)
+					step = j;
+			}
+                        printf("step:expected %d:%d\n", step, _params.hall_step_table[i]);
+		}
+	}
 
 	irq_primask_disable();
 	const int timing_advance_deg = (get_effective_timing_advance_deg64() + 1) * 60 / 64;  // Rounding
