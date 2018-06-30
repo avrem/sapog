@@ -219,7 +219,7 @@ static void init_timers(const float pwm_dead_time)
 	}
 	printf("Motor: PWM dead time %u ticks\n", (unsigned)dead_time_ticks);
 
-	TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
+	TIM1->BDTR = TIM_BDTR_BKP | TIM_BDTR_BKE | TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
 
 	/*
 	 * Default ADC sync config, will be adjusted dynamically
