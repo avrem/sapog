@@ -198,6 +198,7 @@ static struct control_state            /// Control state
 	uint64_t spinup_ramp_duration_hnsec;
 
 	int hall_table[8][MOTOR_NUM_COMMUTATION_STEPS];
+	bool sensored;
 } _state;
 
 enum sensored_modes {
@@ -412,13 +413,32 @@ static inline int read_hall(void)
 	return (hall_c << 2) | (hall_b << 1) | hall_a;
 }
 
+void update_sensored_mode(void)
+{
+	if (_params.sensored == SM_ALWAYS)
+		_state.sensored = true;
+	else
+		_state.sensored = false;
+}
+
+void read_hall_step(void)
+{
+	int step = _params.hall_step_table[read_hall()];
+	if (step != -1)
+		_state.current_comm_step = step;
+	else
+		_state.zc_detection_result = ZC_FAILED;
+}
+
 void motor_timer_callback(uint64_t timestamp_hnsec)
 {
 	if (!(_state.flags & FLAG_ACTIVE)) {
 		return;
 	}
 
-	if ((_state.flags & FLAG_SPINUP) == 0) {
+	update_sensored_mode();
+
+	if ((_state.flags & FLAG_SPINUP) == 0 && !_state.sensored) {
 		/*
 		 * Missing a step drops the advance angle back to negative 15 degrees temporarily,
 		 * in order to account for possible rapid deceleration.
@@ -446,9 +466,13 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	// Next comm step
 	_state.prev_comm_timestamp = timestamp_hnsec;
-	_state.current_comm_step++;
-	if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
-		_state.current_comm_step = 0;
+	if (_state.sensored)
+		read_hall_step();
+	else {
+		_state.current_comm_step++;
+		if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
+			_state.current_comm_step = 0;
+		}
 	}
 
 	bool stop_now = false;
@@ -476,7 +500,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		if (_state.flags & FLAG_SPINUP) {
 			engage_current_comm_step();
 		} else {
-			if ((_state.flags & FLAG_SYNC_RECOVERY) == 0) {
+			if ((_state.flags & FLAG_SYNC_RECOVERY) == 0 || _state.sensored) {
 				// Try to run one more step in powered mode...
 				engage_current_comm_step();
 			} else {
@@ -503,8 +527,13 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	_state.zc_detection_result = ZC_NOT_DETECTED;
 	_state.blank_time_deadline = timestamp_hnsec + _params.comm_blank_hnsec;
 
-	prepare_zc_detector_for_next_step();
-	motor_adc_enable_from_isr();
+	if (!_state.sensored) {
+		prepare_zc_detector_for_next_step();
+		motor_adc_enable_from_isr();
+	}
+	else {
+		motor_adc_disable_from_isr();
+	}
 
 	// Special spinup processing
 	if ((_state.flags & FLAG_SPINUP) != 0) {
@@ -584,6 +613,43 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	}
 
 	motor_adc_disable_from_isr();
+}
+
+static void commutate_now(const uint64_t timestamp)
+{
+	if (!_state.spinup_prev_zc_timestamp_set) {
+		// We didn't have a chance to detect ZC properly, so we speculate
+		_state.prev_zc_timestamp = timestamp;
+		_state.spinup_prev_zc_timestamp_set = true;
+	}
+
+	const uint32_t new_comm_period = timestamp - _state.prev_comm_timestamp;
+
+	// We're using 3x averaging in order to compensate for phase asymmetry
+	_state.comm_period =
+		MIN((new_comm_period + _state.comm_period * 2) / 3,
+		    _params.spinup_start_comm_period);
+
+	if (_state.averaged_comm_period > 0) {
+		_state.averaged_comm_period =
+			(_state.comm_period + _state.averaged_comm_period * 3) / 4;
+	} else {
+		_state.averaged_comm_period = _state.comm_period;
+	}
+
+	_state.zc_detection_result = ZC_DETECTED;
+
+	motor_timer_set_relative(0);
+	motor_adc_disable_from_isr();
+
+	if ((_state.flags & FLAG_SPINUP) != 0 && _state.averaged_comm_period <= _params.comm_period_max) {
+		if (_state.pwm_val >= _state.pwm_val_after_spinup) {
+			_state.flags &= ~FLAG_SPINUP;
+		} else {
+			// Speed up the ramp a bit in order to converge faster
+			_state.pwm_val++;
+		}
+	}
 }
 
 static void update_input_voltage_current(const struct motor_adc_sample* sample)
@@ -740,7 +806,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	const bool proceed =
 		((_state.flags & FLAG_ACTIVE) != 0) &&
 		(_state.zc_detection_result == ZC_NOT_DETECTED) &&
-		(sample->timestamp >= _state.blank_time_deadline);
+		(sample->timestamp >= _state.blank_time_deadline) &&
+		(_state.sensored == 0);
 
 	if (!proceed) {
 		if ((_state.flags & FLAG_ACTIVE) == 0) {
@@ -922,45 +989,34 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		if ((_state.spinup_bemf_integral_positive > 1) &&
 		    (_state.spinup_bemf_integral_positive >= _state.spinup_bemf_integral_negative))
 		{
-			if (!_state.spinup_prev_zc_timestamp_set) {
-				// We didn't have a chance to detect ZC properly, so we speculate
-				_state.prev_zc_timestamp = sample->timestamp;
-				_state.spinup_prev_zc_timestamp_set = true;
-			}
-
-			const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
-
-			// We're using 3x averaging in order to compensate for phase asymmetry
-			_state.comm_period =
-				MIN((new_comm_period + _state.comm_period * 2) / 3,
-				    _params.spinup_start_comm_period);
-
-			if (_state.averaged_comm_period > 0) {
-				_state.averaged_comm_period =
-					(_state.comm_period + _state.averaged_comm_period * 3) / 4;
-			} else {
-				_state.averaged_comm_period = _state.comm_period;
-			}
-
-			_state.zc_detection_result = ZC_DETECTED;
-
-			motor_timer_set_relative(0);
-			motor_adc_disable_from_isr();
-
-			if (_state.averaged_comm_period <= _params.comm_period_max) {
-				if (_state.pwm_val >= _state.pwm_val_after_spinup) {
-					_state.flags &= ~FLAG_SPINUP;
-				} else {
-					// Speed up the ramp a bit in order to converge faster
-					_state.pwm_val++;
-				}
-			}
+			commutate_now(sample->timestamp);
 		}
+	}
+}
+
+void motor_hall_callback(void)
+{
+	if ((_state.flags & FLAG_ACTIVE) != 0 && _state.sensored) {
+		uint64_t timestamp = motor_timer_hnsec() - 2;
+		TESTPAD_ZC_SET();
+		commutate_now(timestamp);
+		TESTPAD_ZC_CLEAR();
 	}
 }
 
 // --- End of hard real time code ---
 #pragma GCC reset_options
+
+void motor_hall_init(void)
+{
+	AFIO->EXTICR[2] = AFIO_EXTICR3_EXTI11_PC;
+	AFIO->EXTICR[3] = AFIO_EXTICR4_EXTI15_PB | AFIO_EXTICR4_EXTI12_PC;
+	EXTI->RTSR = EXTI_RTSR_TR15 | EXTI_RTSR_TR12 | EXTI_RTSR_TR11;
+	EXTI->FTSR = EXTI_FTSR_TR15 | EXTI_FTSR_TR12 | EXTI_FTSR_TR11;
+	EXTI->IMR = EXTI_IMR_MR15 | EXTI_IMR_MR12 | EXTI_IMR_MR11;
+
+	nvicEnableVector(EXTI15_10_IRQn, MOTOR_IRQ_PRIORITY_MASK);
+}
 
 int motor_rtctl_init(void)
 {
@@ -977,6 +1033,8 @@ int motor_rtctl_init(void)
 	}
 
 	motor_dac_init();
+
+	motor_hall_init();
 
 	motor_forced_rotation_detector_init();
 
@@ -1173,6 +1231,9 @@ void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_curren
 
 uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
 {
+        if (_params.sensored == SM_ALWAYS)
+		return 50 * HNSEC_PER_USEC; // 200k ERPM
+
 	// Ensure some number of ADC samples per comm period
 	return MAX(109 * HNSEC_PER_USEC,
 	           motor_adc_sampling_period_hnsec() * 8);
@@ -1228,6 +1289,7 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("bemf opt",        state_copy.zc_bemf_samples_optimal);
 	PRINT_INT("bemf opt past zc",state_copy.zc_bemf_samples_optimal_past_zc);
 	PRINT_INT("timing adv deg",  timing_advance_deg);
+	PRINT_INT("sensored",        state_copy.sensored);
 
 	/*
 	 * Diagnostics
@@ -1276,4 +1338,11 @@ void motor_rtctl_print_debug_info(void)
 
 #undef PRINT_INT
 #undef PRINT_FLT
+}
+
+__attribute__((optimize(3)))
+CH_FAST_IRQ_HANDLER(VectorE0)
+{
+	EXTI->PR = EXTI_PR_PR15 | EXTI_PR_PR12 | EXTI_PR_PR11;
+	motor_hall_callback();
 }
