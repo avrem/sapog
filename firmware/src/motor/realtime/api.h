@@ -168,6 +168,11 @@ enum motor_rtctl_forced_rotation motor_rtctl_get_forced_rotation_state(void);
 void motor_rtctl_print_debug_info(void);
 
 /**
+ * Set motor hall table
+ */
+void motor_rtctl_set_hall_table(void);
+
+/**
  * Perform the ESC self test.
  * @return 0        - test OK,
  *         negative - unable to run the test at the current state,

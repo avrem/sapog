@@ -134,6 +134,7 @@ int motor_test_hardware(void);
 int motor_test_motor(void);
 void motor_beep(int frequency, int duration_msec);
 void motor_print_debug_info(void);
+void motor_set_hall_table(void);
 void motor_emergency(void);
 void motor_execute_cli_command(int argc, const char* argv[]);
 /**

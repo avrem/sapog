@@ -199,6 +199,7 @@ static struct control_state            /// Control state
 
 	int hall_table[8][MOTOR_NUM_COMMUTATION_STEPS];
 	bool sensored;
+	int monitor_hst;
 	bool already_commutated;
 } _state;
 
@@ -292,11 +293,13 @@ static void configure(void)
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
 	_params.sensored = configGet("mot_sensored");
-        int hst = configGet("mot_hall_table");
-        for (int i = 0, div = 1e7; i < 8; i++, div /= 10) {
-            int d = hst / div % 10;
-            _params.hall_step_table[i] = d < MOTOR_NUM_COMMUTATION_STEPS ? d : -1;
-        }
+    int hst = configGet("mot_hall_table");
+    for (int i = 0; i < 8; i++)
+    	_params.hall_step_table[i] = -1;
+    for (int step = 0; step < 6; step++) {
+    	int code = (hst >> (step * 3)) & 7;
+    	_params.hall_step_table[code] = step;
+    }
 
 	_params.comm_delay_hnsec = configGet("mot_comm_delay") * HNSEC_PER_USEC;
 
@@ -1284,6 +1287,7 @@ void motor_rtctl_print_debug_info(void)
 	irq_primask_enable();
 
 	if (_params.sensored == SM_MONITOR) {
+		int mon_hall_step_table[8];
 		for (int i = 0; i < 8; i++) {
 			printf("code %d: ", i);
 			int step = -1;
@@ -1292,8 +1296,19 @@ void motor_rtctl_print_debug_info(void)
 				if ((step == -1 || state_copy.hall_table[i][j] > state_copy.hall_table[i][step]) && state_copy.hall_table[i][j] > 0)
 					step = j;
 			}
-                        printf("step:expected %d:%d\n", step, _params.hall_step_table[i]);
+            printf("step:expected %d:%d\n", step, _params.hall_step_table[i]);
+            mon_hall_step_table[i] = step;
 		}
+
+		_state.monitor_hst = 0;
+		for (int step = 0; step < 6; step++) {
+			int code;
+			for (code = 0; code < 8; code++)
+				if (mon_hall_step_table[code] == step)
+					break;
+			_state.monitor_hst |= (code & 7) << (step * 3);
+		}
+		printf("mot_hall_table: %d\n", _state.monitor_hst);
 	}
 
 	irq_primask_disable();
@@ -1359,6 +1374,17 @@ void motor_rtctl_print_debug_info(void)
 
 #undef PRINT_INT
 #undef PRINT_FLT
+}
+
+void motor_rtctl_set_hall_table(void)
+{
+	if (_params.sensored != SM_MONITOR) {
+		printf("Not in monitor mode\n");
+		return;
+	}
+
+	motor_rtctl_print_debug_info();
+	configSet("mot_hall_table", _state.monitor_hst);
 }
 
 __attribute__((optimize(3)))
