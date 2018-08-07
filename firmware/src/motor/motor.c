@@ -391,7 +391,7 @@ static void update_control(uint32_t comm_period, float dt)
 		return;
 	}
 
-	if (comm_period == 0 || _state.rtctl_state != MOTOR_RTCTL_STATE_RUNNING) {
+	if (comm_period == 0 || _state.rtctl_state == MOTOR_RTCTL_STATE_IDLE) {
 		update_control_non_running();
 		return;
 	}
@@ -421,8 +421,10 @@ static void update_control(uint32_t comm_period, float dt)
 	/*
 	 * Update
 	 */
-	_state.dc_actual = new_duty_cycle;
-	motor_rtctl_set_duty_cycle(_state.dc_actual, _params.current_limit, _state.input_curent_offset);
+	if (_state.rtctl_state == MOTOR_RTCTL_STATE_RUNNING) {
+		_state.dc_actual = new_duty_cycle;
+		motor_rtctl_set_duty_cycle(_state.dc_actual, _params.current_limit, _state.input_curent_offset);
+	}
 }
 
 static void update_setpoint_ttl(int dt_ms)
