@@ -44,6 +44,7 @@
 #include <console.hpp>
 #include <pwm_input.hpp>
 #include <temperature_sensor.hpp>
+#include <magnetic_encoder.hpp>
 #include <motor/motor.h>
 #include <uavcan_node/uavcan_node.hpp>
 
@@ -63,6 +64,8 @@ os::watchdog::Timer init()
 
 	// Temperature sensor
 	int res = temperature_sensor::init();
+
+	magnetic_encoder::init();
 
 	// Motor control (must be initialized earlier than communicaton interfaces)
 	res = motor_init();
