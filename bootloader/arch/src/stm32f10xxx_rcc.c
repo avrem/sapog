@@ -518,7 +518,7 @@ static void stm32_stdclockconfig(void)
   /* Enable HSE */
 
   regval  = getreg32(STM32_RCC_CR);
-  regval &= ~RCC_CR_HSEBYP;         /* Disable HSE clock bypass */
+  regval |= RCC_CR_HSEBYP;         /* Enable HSE clock bypass */
   regval |= RCC_CR_HSEON;           /* Enable HSE */
   putreg32(regval, STM32_RCC_CR);
 

@@ -21,6 +21,7 @@
 #define STM32_HSI_ENABLED                   TRUE  // Needed for FLASH programming
 #define STM32_LSI_ENABLED                   TRUE  // Needed for watchdog
 #define STM32_HSE_ENABLED                   TRUE
+#define STM32_HSE_BYPASS                    TRUE
 #define STM32_LSE_ENABLED                   FALSE
 #define STM32_SW                            STM32_SW_PLL
 #define STM32_PLLSRC                        STM32_PLLSRC_PREDIV1
