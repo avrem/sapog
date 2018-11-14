@@ -1256,7 +1256,7 @@ void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_curren
 uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
 {
         if (_params.sensored == SM_ALWAYS)
-		return 50 * HNSEC_PER_USEC; // 200k ERPM
+		return 40 * HNSEC_PER_USEC; // 200k ERPM
 
 	// Ensure some number of ADC samples per comm period
 	return MAX(109 * HNSEC_PER_USEC,
