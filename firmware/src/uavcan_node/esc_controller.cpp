@@ -35,6 +35,7 @@
 #include "esc_controller.hpp"
 #include <uavcan/equipment/esc/RawCommand.hpp>
 #include <uavcan/equipment/esc/RPMCommand.hpp>
+#include <uavcan/equipment/actuator/ArrayCommand.hpp>
 #include <uavcan/equipment/esc/Status.hpp>
 #include <zubax_chibios/os.hpp>
 #include <motor/motor.h>
@@ -51,7 +52,7 @@ unsigned self_index;
 unsigned command_ttl_ms;
 float max_dc_to_start;
 
-os::config::Param<unsigned> param_esc_index("esc_index",           0,      0,    15);
+os::config::Param<unsigned> param_esc_index("esc_index",           0,      0,    50);
 os::config::Param<unsigned> param_cmd_ttl_ms("cmd_ttl_ms",       200,    100,  5000);
 os::config::Param<float> param_cmd_start_dc("cmd_start_dc",      1.0,   0.01,   1.0);
 
@@ -92,6 +93,20 @@ void cb_rpm_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::
 	}
 }
 
+void cb_act_command(const uavcan::ReceivedDataStructure<uavcan::equipment::actuator::ArrayCommand>& msg)
+{
+	for (int i = 0; i < msg.commands.size(); i++) {
+		if (msg.commands[i].actuator_id == self_index) {
+			const float dc = msg.commands[i].command_value;
+			if (dc > 0) {
+				motor_set_duty_cycle(dc, command_ttl_ms);
+			} else {
+				motor_stop();
+			}
+		}
+	}
+}
+
 void cb_10Hz(const uavcan::TimerEvent& event)
 {
 	uavcan::equipment::esc::Status msg;
@@ -125,6 +140,7 @@ int init_esc_controller(uavcan::INode& node)
 {
 	static uavcan::Subscriber<uavcan::equipment::esc::RawCommand> sub_raw_command(node);
 	static uavcan::Subscriber<uavcan::equipment::esc::RPMCommand> sub_rpm_command(node);
+	static uavcan::Subscriber<uavcan::equipment::actuator::ArrayCommand> sub_act_command(node);
 	static uavcan::Timer timer_10hz(node);
 
 	self_index = param_esc_index.get();
@@ -139,6 +155,11 @@ int init_esc_controller(uavcan::INode& node)
 	}
 
 	res = sub_rpm_command.start(cb_rpm_command);
+	if (res != 0) {
+		return res;
+	}
+
+	res = sub_act_command.start(cb_act_command);
 	if (res != 0) {
 		return res;
 	}
