@@ -62,13 +62,8 @@ extern "C" {
 /**
  * Faster alternatives for GPIO API that can be used from IRQ handlers.
  */
-#if DEBUG_BUILD
-#  define TESTPAD_SET(port, pin)        (port)->BSRR = 1 << (pin)
-#  define TESTPAD_CLEAR(port, pin)      (port)->BRR = 1 << (pin)
-#else
-#  define TESTPAD_SET(port, pin)
-#  define TESTPAD_CLEAR(port, pin)
-#endif
+#define TESTPAD_SET(port, pin)        (port)->BSRR = 1 << (pin)
+#define TESTPAD_CLEAR(port, pin)      (port)->BRR = 1 << (pin)
 
 /**
  * Common priority for all hard real time IRQs.
