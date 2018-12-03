@@ -543,13 +543,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	_state.blank_time_deadline = timestamp_hnsec + _params.comm_blank_hnsec;
 	_state.already_commutated = false;
 
-	if (!_state.sensored) {
+	if (!_state.sensored)
 		prepare_zc_detector_for_next_step();
-		motor_adc_enable_from_isr();
-	}
-	else {
-		motor_adc_disable_from_isr();
-	}
+	motor_adc_enable_from_isr();
 
 	// Special spinup processing
 	if ((_state.flags & FLAG_SPINUP) != 0) {
@@ -833,6 +829,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	if (!proceed) {
 		if ((_state.flags & FLAG_ACTIVE) == 0) {
 			motor_forced_rotation_detector_update_from_adc_callback(COMMUTATION_TABLE_FORWARD, sample);
+		}
+		else {
+			update_input_voltage_current(sample);
 		}
 		return;
 	}
