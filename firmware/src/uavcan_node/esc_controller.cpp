@@ -60,7 +60,8 @@ os::config::Param<float> param_cmd_start_dc("cmd_start_dc",      1.0,   0.01,   
 void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RawCommand>& msg)
 {
 	if (msg.cmd.size() <= self_index) {
-		motor_stop();
+                if (self_index < 20)
+			motor_stop();
 		return;
 	}
 
