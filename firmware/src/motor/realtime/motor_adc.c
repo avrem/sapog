@@ -71,7 +71,7 @@ const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLE
 const int MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC = 9000;
 
 
-CONFIG_PARAM_FLOAT("mot_i_shunt_mr",         5.0,   0.1,   100.0)
+CONFIG_PARAM_FLOAT("mot_i_shunt_mr",         6.6,   0.1,   100.0)
 
 
 static float _shunt_resistance = 0;
@@ -242,12 +242,10 @@ float motor_adc_convert_input_voltage(int raw)
 	return unscaled * SCALE;
 }
 
-const float CURRENT_SCALE = 1000 / (20 * 3.3 / 5) * 1.04; // ACS758 100A 3.3v
-
 float motor_adc_convert_input_current(int raw)
 {
 	const float vout = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
-	const float iload = vout * CURRENT_SCALE;
+	const float iload = vout / _shunt_resistance;
 	return iload;
 }
 
@@ -265,7 +263,7 @@ void motor_dac_init(void)
 int motor_dac_compute_current_limit(float limit, float duty_cycle, float current_offset)
 {
 	const float dc_limit = limit * MAX(duty_cycle, 0.1f);
-	const float vout = (dc_limit + current_offset) / CURRENT_SCALE;
+	const float vout = (dc_limit + current_offset) * _shunt_resistance;
 	const int raw = vout * (1 << ADC_RESOLUTION) / ADC_REF_VOLTAGE;
 	return raw;
 }
