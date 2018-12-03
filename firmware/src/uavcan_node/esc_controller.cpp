@@ -107,7 +107,7 @@ void cb_act_command(const uavcan::ReceivedDataStructure<uavcan::equipment::actua
 	}
 }
 
-void cb_10Hz(const uavcan::TimerEvent& event)
+void cb_10Hz(const uavcan::TimerEvent&)
 {
 	uavcan::equipment::esc::Status msg;
 
@@ -122,16 +122,7 @@ void cb_10Hz(const uavcan::TimerEvent& event)
 		msg.temperature = std::numeric_limits<float>::quiet_NaN();
 	}
 
-	if (motor_is_idle()) {
-		// Lower the publish rate to 1Hz if the motor is not running
-		static uavcan::MonotonicTime prev_pub_ts;
-		if ((event.scheduled_time - prev_pub_ts).toMSec() >= 990) {
-			prev_pub_ts = event.scheduled_time;
-			pub_status->broadcast(msg);
-		}
-	} else {
-		pub_status->broadcast(msg);
-	}
+	pub_status->broadcast(msg);
 }
 
 }
