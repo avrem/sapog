@@ -50,23 +50,6 @@
 #define GLUE3_(A, B, C)  A##B##C
 #define GLUE3(A, B, C)   GLUE3_(A, B, C)
 
-/**
- * Timer declaration
- */
-#define TIMER_NUMBER   3
-
-#define TIMX            GLUE2(TIM, TIMER_NUMBER)
-
-#if TIMER_NUMBER < 2 || TIMER_NUMBER > 7
-#  error "Invalid timer number"
-#else
-#  define TIMX_RCC_ENR          RCC->APB1ENR
-#  define TIMX_RCC_RSTR         RCC->APB1RSTR
-#  define TIMX_RCC_ENR_MASK     GLUE3(RCC_APB1ENR_TIM,  TIMER_NUMBER, EN)
-#  define TIMX_RCC_RSTR_MASK    GLUE3(RCC_APB1RSTR_TIM, TIMER_NUMBER, RST)
-#  define TIMX_INPUT_CLOCK      STM32_TIMCLK1
-#endif
-
 namespace board
 {
 
@@ -75,48 +58,10 @@ namespace board
  */
 void init_led()
 {
-	chSysDisable();
-
-	// Power-on and reset
-	TIMX_RCC_ENR |= TIMX_RCC_ENR_MASK;
-	TIMX_RCC_RSTR |=  TIMX_RCC_RSTR_MASK;
-	TIMX_RCC_RSTR &= ~TIMX_RCC_RSTR_MASK;
-
-	chSysEnable();
-
-	TIMX->ARR = 0xFFFF;
-	TIMX->CR1 = 0;
-	TIMX->CR2 = 0;
-
-	// CC1, CC2, CC3 are R, G, B. Inverted mode.
-	TIMX->CCMR1 =
-		TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
-		TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
-
-	TIMX->CCMR2 =
-		TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
-
-	// All enabled, all inverted.
-	// TODO: Pixhawk ESC v1.4b reqiuires non-inverted outputs; make it optional depending on the HW version?
-	TIMX->CCER =
-		TIM_CCER_CC3E | TIM_CCER_CC2E | TIM_CCER_CC1E |
-		TIM_CCER_CC3P | TIM_CCER_CC2P | TIM_CCER_CC1P;
-
-	// Start
-	TIMX->EGR = TIM_EGR_UG | TIM_EGR_COMG;
-	TIMX->CR1 |= TIM_CR1_CEN;
 }
 
-static void set_hex_impl(std::uint32_t hex_rgb)
+static void set_hex_impl(std::uint32_t)
 {
-	hex_rgb &= 0xFFFFFFU;
-	const unsigned pwm_red   = ((hex_rgb & 0xFF0000U) >> 16) * 257U;
-	const unsigned pwm_green = ((hex_rgb & 0x00FF00U) >> 8)  * 257U;
-	const unsigned pwm_blue  = ((hex_rgb & 0x0000FFU) >> 0)  * 257U;
-
-	TIMX->CCR1 = pwm_red;
-	TIMX->CCR2 = pwm_green;    // On Pixhawk ESC v1.4b this is BLUE
-	TIMX->CCR3 = pwm_blue;     // On Pixhawk ESC v1.4b this is GREEN
 }
 
 void led_emergency_override(LEDColor color)

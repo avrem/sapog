@@ -99,8 +99,8 @@
 #define VAL_GPIOBCRH            0x48b88866
 #define VAL_GPIOBODR            ((1 << GPIO_PIN_I2C_SCL) | (1 << GPIO_PIN_I2C_SDA) | (1 << 12) | (1 << 2))
 
-#define VAL_GPIOCCRL            0xbb884444
-#define VAL_GPIOCCRH            0x8884488b
+#define VAL_GPIOCCRL            0x88884444
+#define VAL_GPIOCCRH            0x88844888
 #define VAL_GPIOCODR            0x00000000
 
 #define VAL_GPIODCRL            0x88888888
