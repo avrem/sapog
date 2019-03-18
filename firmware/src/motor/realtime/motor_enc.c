@@ -12,6 +12,7 @@ CONFIG_PARAM_INT("mot_enc_reverse", 0, 0, 1)
 
 static int _num_pole_pairs;
 static int _steps_count;
+static int _cnt_per_pole;
 
 static int _motor_offset;
 static bool _encoder_reverse; // not-reverse: encoder upcount in motor rotation direction
@@ -135,6 +136,7 @@ int motor_enc_init(void)
 {
 	_num_pole_pairs = configGet("mot_num_poles") / 2;
 	_steps_count = _num_pole_pairs * 6;
+	_cnt_per_pole = ENC_CPR / _num_pole_pairs;
 
 	_motor_offset = configGet("mot_enc_offset");
 	_encoder_reverse = configGet("mot_enc_reverse");
@@ -147,7 +149,7 @@ int motor_enc_init(void)
 	start_pwm_capture();
 
 	usleep(300 * 1000); // wait for samples
-
+ 
 	stop_timer();
 
 	if (_pos_abs_samples_left > 0)
@@ -191,4 +193,17 @@ int motor_enc_step(void)
 	prime_compare(next_count);
 
 	return step;
+}
+
+int motor_enc_offset_from_step(int step64)
+{
+	int pole_cnt64 = (motor_enc_count() * 64) % (_cnt_per_pole * 64);
+	int expected64 = step64 * _cnt_per_pole / 6;
+
+	int delta = (pole_cnt64 - expected64 + 32) / 64;
+	if (delta < 0)
+		delta += _cnt_per_pole;
+	else if (delta >= _cnt_per_pole)
+		delta -= _cnt_per_pole;
+	return delta;
 }

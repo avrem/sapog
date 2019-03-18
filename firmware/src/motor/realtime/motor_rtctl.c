@@ -202,6 +202,7 @@ static struct control_state            /// Control state
 	int enc_step;
 	bool encoder_failed;
 	int enc_step_table[MOTOR_NUM_COMMUTATION_STEPS][MOTOR_NUM_COMMUTATION_STEPS];
+	int enc_offset_sum, enc_offset_cnt;
 } _state;
 
 enum sensored_modes {
@@ -602,7 +603,8 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 		_diag.late_commutations++;
 	}
 
-	motor_adc_disable_from_isr();
+	if (_params.sensored != SM_MONITOR)
+		motor_adc_disable_from_isr();
 }
 
 static void commutate_now(const uint64_t timestamp)
@@ -806,6 +808,17 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	if (_params.sensored != SM_NONE) // failsafe
 		motor_enc_callback();
+
+	if (_params.sensored == SM_MONITOR && (_state.flags & FLAG_ACTIVE) != 0 && (_state.flags & FLAG_SPINUP) == 0) {
+		int sample_pt = 64 * (sample->timestamp - _state.prev_comm_timestamp) / _state.averaged_comm_period;
+
+		if (sample_pt >= 16 && sample_pt <= 48)
+			_state.enc_step_table[_state.enc_step][_state.current_comm_step]++;
+
+		int offset = motor_enc_offset_from_step(_state.current_comm_step * 64 + 32/*sample_pt*/);
+		_state.enc_offset_sum += offset;
+		_state.enc_offset_cnt++;
+	}
 
 	if (!proceed) {
 		if ((_state.flags & FLAG_ACTIVE) == 0) {
@@ -1287,6 +1300,8 @@ void motor_rtctl_print_debug_info(void)
 		PRINT_INT("encoder count", motor_enc_count());
 		PRINT_INT("encoder step", state_copy.enc_step);
 	}
+	if (_params.sensored == SM_MONITOR && state_copy.enc_offset_cnt > 0)
+		PRINT_FLT("encoder offset", (float)state_copy.enc_offset_sum / state_copy.enc_offset_cnt);
 
 	/*
 	 * Diagnostics
