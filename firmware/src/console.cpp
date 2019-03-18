@@ -224,11 +224,6 @@ static void cmd_md(BaseSequentialStream *chp, int argc, char *argv[])
 	motor_print_debug_info();
 }
 
-static void cmd_hst(BaseSequentialStream *chp, int argc, char *argv[])
-{
-	motor_set_hall_table();
-}
-
 static void cmd_m(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	motor_execute_cli_command(argc, (const char**)argv);
@@ -299,7 +294,6 @@ static const ShellCommand _commands[] =
 	COMMAND(rpm)
 	COMMAND(startstop)
 	COMMAND(md)
-	COMMAND(hst)
 	COMMAND(m)
 	COMMAND(zubax_id)
 	COMMAND(uavcan)

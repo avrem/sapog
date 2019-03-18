@@ -747,13 +747,6 @@ void motor_print_debug_info(void)
 	chMtxUnlock(&_mutex);
 }
 
-void motor_set_hall_table(void)
-{
-	chMtxLock(&_mutex);
-	motor_rtctl_set_hall_table();
-	chMtxUnlock(&_mutex);
-}
-
 void motor_emergency(void)
 {
 	motor_rtctl_emergency();
