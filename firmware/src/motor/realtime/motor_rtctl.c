@@ -38,6 +38,7 @@
 #include "pwm.h"
 #include "timer.h"
 #include "irq.h"
+#include "enc.h"
 #include "forced_rotation_detection.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -197,8 +198,10 @@ static struct control_state            /// Control state
 
 	uint64_t spinup_ramp_duration_hnsec;
 
-	int hall_table[8][MOTOR_NUM_COMMUTATION_STEPS];
 	bool sensored;
+	int enc_step;
+	bool encoder_failed;
+	int enc_step_table[MOTOR_NUM_COMMUTATION_STEPS][MOTOR_NUM_COMMUTATION_STEPS];
 } _state;
 
 enum sensored_modes {
@@ -228,7 +231,6 @@ static struct precomputed_params       /// Parameters are read only
 	uint32_t adc_sampling_period;
 
 	enum sensored_modes sensored;
-        int hall_step_table[8];
 	uint32_t comm_delay_hnsec;
 } _params;
 
@@ -251,7 +253,6 @@ CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (
 CONFIG_PARAM_INT("mot_spup_blnk_pm",    100,   1,     300)      // permill
 // Sensored
 CONFIG_PARAM_INT("mot_sensored",        0,     0,     3)
-CONFIG_PARAM_INT("mot_hall_table",      0,     0,     66666666)
 CONFIG_PARAM_INT("mot_comm_delay",      0,     0,     100)
 
 static void configure(void)
@@ -291,13 +292,6 @@ static void configure(void)
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
 	_params.sensored = configGet("mot_sensored");
-    int hst = configGet("mot_hall_table");
-    for (int i = 0; i < 8; i++)
-    	_params.hall_step_table[i] = -1;
-    for (int step = 0; step < 6; step++) {
-    	int code = (hst >> (step * 3)) & 7;
-    	_params.hall_step_table[code] = step;
-    }
 
 	_params.comm_delay_hnsec = configGet("mot_comm_delay") * HNSEC_PER_USEC;
 
@@ -411,16 +405,6 @@ static void prepare_zc_detector_for_next_step(void)
 	_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal * (32 - advance) / 64;
 }
 
-#define HALL_READ(port, pin) (((port)->IDR >> pin) & 1)
-
-static inline int read_hall(void)
-{
-	bool hall_a = HALL_READ(GPIO_PORT_HALL_A, GPIO_PIN_HALL_A);
-	bool hall_b = HALL_READ(GPIO_PORT_HALL_B, GPIO_PIN_HALL_B);
-	bool hall_c = HALL_READ(GPIO_PORT_HALL_C, GPIO_PIN_HALL_C);
-	return (hall_c << 2) | (hall_b << 1) | hall_a;
-}
-
 void update_sensored_mode(void)
 {
 	if (_params.sensored == SM_ALWAYS)
@@ -431,15 +415,6 @@ void update_sensored_mode(void)
 				 (_state.zc_detection_result != ZC_DETECTED);
 	else
 		_state.sensored = false;
-}
-
-void read_hall_step(void)
-{
-	int step = _params.hall_step_table[read_hall()];
-	if (step != -1)
-		_state.current_comm_step = step;
-	else
-		_state.zc_detection_result = ZC_FAILED;
 }
 
 void motor_timer_callback(uint64_t timestamp_hnsec)
@@ -476,10 +451,17 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		_state.spinup_prev_zc_timestamp_set = false;
 	}
 
+	if (_params.sensored != SM_NONE)
+		_state.enc_step = motor_enc_step();
+
 	// Next comm step
 	_state.prev_comm_timestamp = timestamp_hnsec;
-	if (_state.sensored)
-		read_hall_step();
+	if (_state.sensored) {
+		if (_state.enc_step != -1)
+			_state.current_comm_step = _state.enc_step;
+		else
+			_state.zc_detection_result = ZC_FAILED;
+	}
 	else {
 		_state.current_comm_step++;
 		if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
@@ -822,6 +804,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		(sample->timestamp >= _state.blank_time_deadline) &&
 		(_state.sensored == 0);
 
+	if (_params.sensored != SM_NONE) // failsafe
+		motor_enc_callback();
+
 	if (!proceed) {
 		if ((_state.flags & FLAG_ACTIVE) == 0) {
 			motor_forced_rotation_detector_update_from_adc_callback(COMMUTATION_TABLE_FORWARD, sample);
@@ -850,11 +835,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 		}
 #endif
-
-		if (_params.sensored == SM_MONITOR) {
-			int hall_step = read_hall();
-			_state.hall_table[hall_step][_state.current_comm_step]++;
-		}
 
 		_state.zc_bemf_seen_before_zc = _state.zc_bemf_seen_before_zc || !past_zc;
 
@@ -1008,8 +988,14 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	}
 }
 
-void motor_hall_callback(void)
+void motor_enc_callback(void)
 {
+	int step = motor_enc_step();
+	if (_state.enc_step == step)
+		return;
+
+	_state.enc_step = step;
+
 	if ((_state.flags & FLAG_ACTIVE) != 0 && _state.sensored) {
 		uint64_t timestamp = motor_timer_hnsec() - 2;
 		commutate_now(timestamp);
@@ -1018,17 +1004,6 @@ void motor_hall_callback(void)
 
 // --- End of hard real time code ---
 #pragma GCC reset_options
-
-void motor_hall_init(void)
-{
-	AFIO->EXTICR[2] = AFIO_EXTICR3_EXTI11_PC;
-	AFIO->EXTICR[3] = AFIO_EXTICR4_EXTI15_PB | AFIO_EXTICR4_EXTI12_PC;
-	EXTI->RTSR = EXTI_RTSR_TR15 | EXTI_RTSR_TR12 | EXTI_RTSR_TR11;
-	EXTI->FTSR = EXTI_FTSR_TR15 | EXTI_FTSR_TR12 | EXTI_FTSR_TR11;
-	EXTI->IMR = EXTI_IMR_MR15 | EXTI_IMR_MR12 | EXTI_IMR_MR11;
-
-	nvicEnableVector(EXTI15_10_IRQn, MOTOR_IRQ_PRIORITY_MASK);
-}
 
 int motor_rtctl_init(void)
 {
@@ -1046,11 +1021,16 @@ int motor_rtctl_init(void)
 
 	motor_dac_init();
 
-	motor_hall_init();
-
 	motor_forced_rotation_detector_init();
 
 	configure();
+
+	if (_params.sensored > SM_NONE) {
+		ret = motor_enc_init();
+		if (ret < 0)
+			_state.encoder_failed = true;
+	}
+
 	motor_rtctl_stop();
 	return 0;
 }
@@ -1058,7 +1038,7 @@ int motor_rtctl_init(void)
 void motor_rtctl_confirm_initialization(void)
 {
 	assert(!_initialization_confirmed);
-	_initialization_confirmed = true;
+	_initialization_confirmed = !_state.encoder_failed;
 }
 
 static void init_adc_filters(void)
@@ -1089,6 +1069,7 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 	 */
 	memset(&_diag, 0, sizeof(_diag));
 	memset(&_state, 0, sizeof(_state));    // Mighty reset
+	_state.enc_step = -1;
 
 	motor_forced_rotation_detector_reset();
 
@@ -1275,15 +1256,15 @@ void motor_rtctl_print_debug_info(void)
 	irq_primask_enable();
 
 	if (_params.sensored == SM_MONITOR) {
-		for (int i = 0; i < 8; i++) {
+		for (int i = 0; i < MOTOR_NUM_COMMUTATION_STEPS; i++) {
 			printf("code %d: ", i);
 			int step = -1;
 			for (int j = 0; j < MOTOR_NUM_COMMUTATION_STEPS; j++) {
-				printf("%d ", state_copy.hall_table[i][j]);
-				if ((step == -1 || state_copy.hall_table[i][j] > state_copy.hall_table[i][step]) && state_copy.hall_table[i][j] > 0)
+				printf("%d ", state_copy.enc_step_table[i][j]);
+				if ((step == -1 || state_copy.enc_step_table[i][j] > state_copy.enc_step_table[i][step]) && state_copy.enc_step_table[i][j] > 0)
 					step = j;
 			}
-            printf("step:expected %d:%d\n", step, _params.hall_step_table[i]);
+            printf("step:expected %d:%d\n", step, i);
 		}
 	}
 
@@ -1302,6 +1283,10 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("bemf opt past zc",state_copy.zc_bemf_samples_optimal_past_zc);
 	PRINT_INT("timing adv deg",  timing_advance_deg);
 	PRINT_INT("sensored",        state_copy.sensored);
+	if (_params.sensored >= SM_MONITOR) {
+		PRINT_INT("encoder count", motor_enc_count());
+		PRINT_INT("encoder step", state_copy.enc_step);
+	}
 
 	/*
 	 * Diagnostics
@@ -1350,11 +1335,4 @@ void motor_rtctl_print_debug_info(void)
 
 #undef PRINT_INT
 #undef PRINT_FLT
-}
-
-__attribute__((optimize(3)))
-CH_FAST_IRQ_HANDLER(VectorE0)
-{
-	EXTI->PR = EXTI_PR_PR15 | EXTI_PR_PR12 | EXTI_PR_PR11;
-	motor_hall_callback();
 }
