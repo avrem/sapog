@@ -200,7 +200,6 @@ static struct control_state            /// Control state
 	int hall_table[8][MOTOR_NUM_COMMUTATION_STEPS];
 	bool sensored;
 	int monitor_hst;
-	bool already_commutated;
 } _state;
 
 enum sensored_modes {
@@ -493,8 +492,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	switch (_state.zc_detection_result) {
 	case ZC_DETECTED: {
-		if (!_state.already_commutated)
-			engage_current_comm_step();
+		engage_current_comm_step();
 		register_good_step();
 		_state.flags &= ~FLAG_SYNC_RECOVERY;
 		break;
@@ -541,7 +539,6 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	_state.zc_detection_result = ZC_NOT_DETECTED;
 	_state.blank_time_deadline = timestamp_hnsec + _params.comm_blank_hnsec;
-	_state.already_commutated = false;
 
 	if (!_state.sensored)
 		prepare_zc_detector_for_next_step();
@@ -1015,13 +1012,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 void motor_hall_callback(void)
 {
 	if ((_state.flags & FLAG_ACTIVE) != 0 && _state.sensored) {
-		if (_params.comm_delay_hnsec == 0) { // commutate immediately
-			read_hall_step();
-			if (_state.zc_detection_result != ZC_FAILED) {
-				engage_current_comm_step();
-				_state.already_commutated = true;
-			}
-		}
 		uint64_t timestamp = motor_timer_hnsec() - 2;
 		commutate_now(timestamp);
 	}
