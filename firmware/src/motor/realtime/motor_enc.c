@@ -119,8 +119,8 @@ static void start_encoder(uint32_t pos)
 	TIM3->ARR = ENC_CPR;
 	TIM3->PSC = 0;
 
-	TIM3->CCMR1 = TIM_CCMR1_CC1S_0 | TIM_CCMR1_CC2S_0; // 1+2 channels input direct, no filter, no prescaler
-	TIM3->CCMR2 = TIM_CCMR2_CC3S_0; // 3 input direct
+	TIM3->CCMR1 = TIM_CCMR1_CC1S_0 | TIM_CCMR1_CC2S_0 | TIM_CCMR1_IC1F_2 | TIM_CCMR1_IC2F_2; // 1+2 input direct, filter 4
+	TIM3->CCMR2 = TIM_CCMR2_CC3S_0 | TIM_CCMR2_IC3F_0 | TIM_CCMR2_IC3F_1 | TIM_CCMR2_IC3F_2; // 3 input direct, filter 7
 	TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E;
 
 	TIM3->DIER = TIM_DIER_CC3IE;
