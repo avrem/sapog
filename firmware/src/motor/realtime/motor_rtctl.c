@@ -1032,8 +1032,6 @@ int motor_rtctl_init(void)
 		return ret;
 	}
 
-	motor_dac_init();
-
 	motor_forced_rotation_detector_init();
 
 	configure();
@@ -1141,14 +1139,10 @@ void motor_rtctl_stop(void)
 	motor_pwm_set_freewheeling();
 }
 
-void motor_rtctl_set_duty_cycle(float duty_cycle, float current_limit, float current_offset)
+void motor_rtctl_set_duty_cycle(float duty_cycle)
 {
 	// We don't need a critical section to write an integer
 	_state.pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
-
-	int current_limit_pos = motor_dac_compute_current_limit(current_limit, duty_cycle, current_offset);
-	int current_limit_neg = motor_dac_compute_current_limit(-current_limit, duty_cycle, current_offset);
-	motor_dac_set_current_limits(current_limit_pos, current_limit_neg);
 }
 
 enum motor_rtctl_state motor_rtctl_get_state(void)

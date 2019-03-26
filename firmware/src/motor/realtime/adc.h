@@ -66,11 +66,6 @@ struct motor_adc_sample motor_adc_get_last_sample(void);
 float motor_adc_convert_input_voltage(int raw);
 float motor_adc_convert_input_current(int raw);
 
-void motor_dac_init(void);
-
-int motor_dac_compute_current_limit(float limit, float duty_cycle, float current_offset);
-void motor_dac_set_current_limits(int current_limit_pos, int current_limit_neg);
-
 /**
  * No OS API can be used from this callback!
  */

@@ -44,8 +44,6 @@
 #include <zubax_chibios/config/config.h>
 
 
-#define MAX(a, b)                  (((a) > (b)) ? (a) : (b))
-
 #define ADC_REF_VOLTAGE          3.3f
 #define ADC_RESOLUTION           12
 
@@ -247,30 +245,4 @@ float motor_adc_convert_input_current(int raw)
 	const float vout = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
 	const float iload = vout / _shunt_resistance;
 	return iload;
-}
-
-void motor_dac_init(void)
-{
-	RCC->APB1ENR |= RCC_APB1ENR_DACEN;
-	DAC->CR |= 
-		DAC_CR_EN1 | DAC_CR_TEN1 | DAC_CR_TSEL1 | DAC_CR_BOFF1 |
-		DAC_CR_EN2 | DAC_CR_TEN2 | DAC_CR_TSEL2 | DAC_CR_BOFF2;
-
-	static const int ADC_MAX = (1 << ADC_RESOLUTION) - 1;
-	motor_dac_set_current_limits(ADC_MAX, 0);
-}
-
-int motor_dac_compute_current_limit(float limit, float duty_cycle, float current_offset)
-{
-	const float dc_limit = limit * MAX(duty_cycle, 0.1f);
-	const float vout = (dc_limit + current_offset) * _shunt_resistance;
-	const int raw = vout * (1 << ADC_RESOLUTION) / ADC_REF_VOLTAGE;
-	return raw;
-}
-
-void motor_dac_set_current_limits(int current_limit_pos, int current_limit_neg)
-{
-	while (DAC->SWTRIGR);
-	DAC->DHR12RD = (current_limit_pos << 16) | current_limit_neg;
-	DAC->SWTRIGR |= DAC_SWTRIGR_SWTRIG1 | DAC_SWTRIGR_SWTRIG2;
 }
