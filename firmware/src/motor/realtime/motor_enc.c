@@ -207,3 +207,8 @@ int motor_enc_offset_from_step(int step64)
 		delta -= _cnt_per_pole;
 	return delta;
 }
+
+int motor_enc_index(void)
+{
+	return _index_offset;
+}

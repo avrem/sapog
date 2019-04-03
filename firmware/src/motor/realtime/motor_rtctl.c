@@ -1293,6 +1293,7 @@ void motor_rtctl_print_debug_info(void)
 	if (_params.sensored >= SM_MONITOR) {
 		PRINT_INT("encoder count", motor_enc_count());
 		PRINT_INT("encoder step", state_copy.enc_step);
+		PRINT_INT("encoder index", motor_enc_index());
 	}
 	if (_params.sensored == SM_MONITOR && state_copy.enc_offset_cnt > 0)
 		PRINT_FLT("encoder offset", (float)state_copy.enc_offset_sum / state_copy.enc_offset_cnt);
