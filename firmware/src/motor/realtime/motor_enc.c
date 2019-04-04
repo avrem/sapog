@@ -81,7 +81,8 @@ CH_FAST_IRQ_HANDLER(STM32_TIM3_HANDLER)
 		else
 			motor_enc_callback();
 	}
-	else if (sr & STM32_TIM_SR_CC3IF) {
+
+	if (sr & STM32_TIM_SR_CC3IF) {
 		if (TIM3->CCMR2 & TIM_CCMR2_CC3S_1) // CH3 mapped to TI4
 			pwm_callback(rise_time, TIM3->CCR3);
 		else
