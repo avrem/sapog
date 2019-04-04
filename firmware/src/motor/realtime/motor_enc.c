@@ -120,10 +120,10 @@ static void start_encoder(uint32_t pos)
 	TIM3->PSC = 0;
 
 	TIM3->CCMR1 = TIM_CCMR1_CC1S_0 | TIM_CCMR1_CC2S_0 | TIM_CCMR1_IC1F_2 | TIM_CCMR1_IC2F_2; // 1+2 input direct, filter 4
-	TIM3->CCMR2 = TIM_CCMR2_CC3S_0 | TIM_CCMR2_IC3F_0 | TIM_CCMR2_IC3F_1 | TIM_CCMR2_IC3F_2; // 3 input direct, filter 7
-	TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E;
+	TIM3->CCMR2 = TIM_CCMR2_CC3S_0 | TIM_CCMR2_IC3F_0 | TIM_CCMR2_IC3F_1 | TIM_CCMR2_IC3F_2 | TIM_CCMR2_OC4M_0; // 3 input direct, filter 7; 4 output compare active
+	TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E;
 
-	TIM3->DIER = TIM_DIER_CC3IE;
+	TIM3->DIER = TIM_DIER_CC3IE | TIM_DIER_CC4IE;
 
 	TIM3->SMCR = TIM_SMCR_SMS_0 | TIM_SMCR_SMS_1; // encoder mode 3
 
@@ -172,8 +172,6 @@ static void prime_compare(int cnt)
 {
 	cnt = _encoder_reverse ? ENC_CPR - cnt : cnt;
 	TIM3->CCR4 = (cnt + _index_offset) & (ENC_CPR - 1);
-	TIM3->CCER |= TIM_CCER_CC4E;
-	TIM3->DIER |= TIM_DIER_CC4IE;
 }
 
 int motor_enc_step(void)
