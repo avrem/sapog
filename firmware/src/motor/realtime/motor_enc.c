@@ -165,12 +165,12 @@ int motor_enc_init(void)
 int motor_enc_count(void)
 {
 	int cnt = ((int)TIM3->CNT - _index_offset) & (ENC_CPR - 1);
-	return _encoder_reverse ? 2048 - cnt : cnt;
+	return _encoder_reverse ? ENC_CPR - cnt : cnt;
 }
 
 static void prime_compare(int cnt)
 {
-	cnt = _encoder_reverse ? 2048 - cnt : cnt;
+	cnt = _encoder_reverse ? ENC_CPR - cnt : cnt;
 	TIM3->CCR4 = (cnt + _index_offset) & (ENC_CPR - 1);
 	TIM3->CCER |= TIM_CCER_CC4E;
 	TIM3->DIER |= TIM_DIER_CC4IE;
