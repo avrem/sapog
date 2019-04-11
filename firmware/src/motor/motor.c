@@ -398,6 +398,8 @@ static void update_control(uint32_t comm_period, float dt)
 		_state.dc_actual = new_duty_cycle;
 		motor_rtctl_set_duty_cycle(_state.dc_actual);
 	}
+
+	motor_rtctl_update_delay(_state.filtered_input_current_for_limiter);
 }
 
 static void update_setpoint_ttl(int dt_ms)

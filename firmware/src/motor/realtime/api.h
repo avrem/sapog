@@ -112,6 +112,8 @@ void motor_rtctl_stop(void);
  */
 void motor_rtctl_set_duty_cycle(float duty_cycle);
 
+void motor_rtctl_update_delay(float current);
+
 /**
  * Returns motor state.
  */

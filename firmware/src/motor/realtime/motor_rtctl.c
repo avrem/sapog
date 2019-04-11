@@ -198,6 +198,8 @@ static struct control_state            /// Control state
 
 	uint64_t spinup_ramp_duration_hnsec;
 
+	uint32_t comm_delay_hnsec;
+
 	bool sensored;
 	int enc_step;
 	bool encoder_failed;
@@ -232,7 +234,7 @@ static struct precomputed_params       /// Parameters are read only
 	uint32_t adc_sampling_period;
 
 	enum sensored_modes sensored;
-	uint32_t comm_delay_hnsec;
+	uint32_t comm_delay_base;
 } _params;
 
 static bool _initialization_confirmed = false;
@@ -294,7 +296,7 @@ static void configure(void)
 
 	_params.sensored = configGet("mot_sensored");
 
-	_params.comm_delay_hnsec = configGet("mot_comm_delay") * HNSEC_PER_USEC;
+	_params.comm_delay_base = configGet("mot_comm_delay");
 
 	printf("Motor: RTCTL config: Max comm period: %u usec, BEMF window denom: %i\n",
 		(unsigned)(_params.comm_period_max / HNSEC_PER_USEC),
@@ -615,7 +617,7 @@ static void commutate_now(const uint64_t timestamp)
 		_state.spinup_prev_zc_timestamp_set = true;
 	}
 
-	const uint32_t new_comm_period = timestamp + _params.comm_delay_hnsec - _state.prev_comm_timestamp;
+	const uint32_t new_comm_period = timestamp + _state.comm_delay_hnsec - _state.prev_comm_timestamp;
 
 	// We're using 3x averaging in order to compensate for phase asymmetry
 	_state.comm_period =
@@ -640,8 +642,8 @@ static void commutate_now(const uint64_t timestamp)
 		}
 	}
 
-	if (_params.comm_delay_hnsec > 0) {
-		motor_timer_set_relative(_params.comm_delay_hnsec);
+	if (_state.comm_delay_hnsec > 0) {
+		motor_timer_set_relative(_state.comm_delay_hnsec);
 		motor_adc_disable_from_isr();
 	}
 	else {
@@ -1145,6 +1147,22 @@ void motor_rtctl_set_duty_cycle(float duty_cycle)
 	_state.pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
 }
 
+// FIXME: move to motor.c mostly
+void motor_rtctl_update_delay(float current)
+{
+	const float max_delay_current = -30;
+
+	float k;
+	if (current >= 0)
+		k = 0.0f;
+	else if (current <= max_delay_current)
+		k = 1.0f;
+	else
+		k = current / max_delay_current;
+
+	_state.comm_delay_hnsec = k * _params.comm_delay_base * HNSEC_PER_USEC;
+}
+
 enum motor_rtctl_state motor_rtctl_get_state(void)
 {
 	volatile const unsigned flags = _state.flags;
@@ -1281,6 +1299,7 @@ void motor_rtctl_print_debug_info(void)
 
 	printf("Motor RTCTL state\n");
 	PRINT_INT("comm period",     state_copy.comm_period / HNSEC_PER_USEC);
+	PRINT_INT("comm delay",      state_copy.comm_delay_hnsec / HNSEC_PER_USEC);
 	PRINT_INT("flags",           state_copy.flags);
 	PRINT_INT("neutral voltage", state_copy.neutral_voltage);
 	PRINT_INT("input voltage",   state_copy.input_voltage);
