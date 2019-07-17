@@ -253,8 +253,8 @@ CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (
 CONFIG_PARAM_INT("mot_spup_blnk_pm",    100,   1,     300)      // permill
 // Sensored
 CONFIG_PARAM_INT("mot_sensored",        0,     0,     3)
-CONFIG_PARAM_INT("mot_hall_table",      0,     0,     66666666)
-CONFIG_PARAM_INT("mot_comm_delay",      0,     0,     100)
+CONFIG_PARAM_INT("mot_hall_table",      169652,0,     66666666)
+CONFIG_PARAM_INT("mot_comm_delay",      30,    0,     100)
 
 static void configure(void)
 {
