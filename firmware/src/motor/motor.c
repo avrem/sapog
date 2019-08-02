@@ -84,6 +84,8 @@ static struct state
 
 	float filtered_input_current_for_limiter;
 
+        float filtered_rpm;
+
 	enum motor_rtctl_state rtctl_state;
 
 	int beep_frequency;
@@ -184,6 +186,7 @@ static void init_filters(void)
 	motor_rtctl_get_input_voltage_current(&_state.input_voltage, &_state.input_curent_offset);
 	_state.input_current = 0.0f;
 	_state.filtered_input_current_for_limiter = 0.0f;
+        _state.filtered_rpm = 0.0f;
 }
 
 static void update_filters(float dt)
@@ -205,6 +208,10 @@ static void update_filters(float dt)
 	_state.filtered_input_current_for_limiter =
 		lowpass(_state.filtered_input_current_for_limiter, _state.input_current,
 			1.0F, dt);
+
+	uint32_t cp = motor_rtctl_get_comm_period_hnsec();
+	unsigned rpm = (cp > 0) ? comm_period_to_rpm(cp) : 0;
+        _state.filtered_rpm = lowpass(_state.filtered_rpm, rpm, _params.voltage_current_lowpass_tau, dt);
 }
 
 static void stop(bool expected)
@@ -608,10 +615,9 @@ float motor_get_duty_cycle(void)
 unsigned motor_get_rpm(void)
 {
 	chMtxLock(&_mutex);
-	uint32_t cp = motor_rtctl_get_comm_period_hnsec();
-	unsigned rpm = (cp > 0) ? comm_period_to_rpm(cp) : 0;
+	unsigned ret = (unsigned)_state.filtered_rpm;         
 	chMtxUnlock(&_mutex);
-	return rpm;
+	return ret;
 }
 
 enum motor_control_mode motor_get_control_mode(void)
