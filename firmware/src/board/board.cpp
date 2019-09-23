@@ -40,9 +40,9 @@
 #include <zubax_chibios/platform/stm32/config_storage.hpp>
 
 // Clock config validation
-#if STM32_PREDIV1_VALUE != 2
+/*#if STM32_PREDIV1_VALUE != 2
 # error STM32_PREDIV1_VALUE
-#endif
+#endif*/
 #if STM32_SYSCLK != 72000000
 # error STM32_SYSCLK
 #endif

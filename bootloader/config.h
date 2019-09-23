@@ -80,7 +80,7 @@
  * LSE - 32.768 kHz
  */
 
-#define STM32_BOARD_XTAL        24000000ul
+#define STM32_BOARD_XTAL        8000000ul
 
 #define STM32_HSI_FREQUENCY     8000000ul
 #define STM32_LSI_FREQUENCY     40000
@@ -91,7 +91,7 @@
 
 /* PLL ouput is 72MHz */
 
-#define STM32_PLL_PREDIV2       RCC_CFGR2_PREDIV2d3   /* 24MHz / 3 => 8MHz */
+#define STM32_PLL_PREDIV2       RCC_CFGR2_PREDIV2d1   /* 8MHz / 1 => 8MHz */
 #define STM32_PLL_PLL2MUL       RCC_CFGR2_PLL2MULx9   /* 8MHz * 9  => 72MHz */
 #define STM32_PLL_PREDIV1       RCC_CFGR2_PREDIV1d9   /* 72MHz / 9 => 8MHz */
 #define STM32_PLL_PLLMUL        RCC_CFGR_PLLMUL_CLKx9 /* 8MHz * 9  => 72Mhz */

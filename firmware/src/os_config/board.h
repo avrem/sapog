@@ -34,7 +34,7 @@
 
 #pragma once
 
-#define STM32_HSECLK            24000000
+#define STM32_HSECLK            8000000
 
 #define STM32F10X_CL
 #define STM32F105xC
