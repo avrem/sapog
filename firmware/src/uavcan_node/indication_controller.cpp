@@ -34,7 +34,6 @@
 
 #include "indication_controller.hpp"
 #include <uavcan/equipment/indication/LightsCommand.hpp>
-#include <uavcan/equipment/indication/BeepCommand.hpp>
 #include <zubax_chibios/os.hpp>
 #include <motor/motor.h>
 #include <board/board.hpp>
@@ -78,28 +77,17 @@ void cb_light_command(const uavcan::ReceivedDataStructure<uavcan::equipment::ind
 	}
 }
 
-void cb_beep_command(const uavcan::ReceivedDataStructure<uavcan::equipment::indication::BeepCommand>& msg)
-{
-	motor_beep(static_cast<int>(msg.frequency), static_cast<int>(msg.duration * 1000));
-}
-
 }
 
 int init_indication_controller(uavcan::INode& node)
 {
 	static uavcan::Subscriber<uavcan::equipment::indication::LightsCommand> sub_light(node);
-	static uavcan::Subscriber<uavcan::equipment::indication::BeepCommand> sub_beep(node);
 
 	self_light_index = param_light_index.get();
 
 	int res = 0;
 
 	res = sub_light.start(cb_light_command);
-	if (res != 0) {
-		return res;
-	}
-
-	res = sub_beep.start(cb_beep_command);
 	if (res != 0) {
 		return res;
 	}
